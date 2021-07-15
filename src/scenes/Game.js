@@ -1,10 +1,11 @@
-import Phaser from 'phaser'
+import Phaser, { Physics } from 'phaser'
 
 
 import { GameBackground, GameOver } from '../consts/SceneKeys'
 import * as Colors from '../consts/Colors.js'
 
 import { PressStart2P } from '../consts/Fonts'
+import * as AudioKeys from '../consts/AudioKeys'
 
 const GameState = {
     Running: 'running',
@@ -39,8 +40,10 @@ class Game extends Phaser.Scene {
         this.physics.add.existing(this.ball)
         this.ball.body.setCircle(10)
         this.ball.body.setBounce(1, 1)
+        this.ball.body.setMaxSpeed(400)
 
         this.ball.body.setCollideWorldBounds(true, 1, 1)
+        this.ball.body.onWorldBounds = true
 
         this.paddleLeft = this.add.rectangle(50 , 250, 30, 100, Colors.White, 1)
         this.physics.add.existing(this.paddleLeft, true)
@@ -50,8 +53,10 @@ class Game extends Phaser.Scene {
 
         /** @type {Phaser.Physics.Arcade.Body} */
         //paddleLeft.body.setBounce(1, 1)
-        this.physics.add.collider(this.paddleLeft, this.ball)
-        this.physics.add.collider(this.paddleRight, this.ball)
+        this.physics.add.collider(this.paddleLeft, this.ball, this.handlePaddleBallCollision, undefined, this)
+        this.physics.add.collider(this.paddleRight, this.ball, this.handlePaddleBallCollision, undefined, this)
+
+        this.physics.world.on('worldbounds', this.handleBallWorldBoundsCollision, this)
 
         const scoreStyle =  { 
             fontSize: 48,
@@ -85,6 +90,29 @@ class Game extends Phaser.Scene {
         this.checkScore()
     }
 
+    handleBallWorldBoundsCollision(body, up, down, left, right) {
+        if (left || right) {
+            //we don't care - no need to play sound!
+            return
+        }
+
+        this.sound.play(AudioKeys.PongPlop)
+    }
+
+    handlePaddleBallCollision( paddle, ball ) {
+        this.sound.play(AudioKeys.PongBeep)
+        /** @type {Phaser.Physics.Arcade.Body} */
+        const body = this.ball.body
+        const vel = body.velocity
+        vel.x *= 1.05
+        vel.y *= 1.05
+
+        body.setVelocity( vel.x, vel.y )
+
+        // console.dir(paddle)
+        // console.dir(ball)
+    }
+
     processPlayerInput() {
 
         /** @type {Phaser.Physics.Arcade.StaticBody} */
@@ -115,7 +143,7 @@ class Game extends Phaser.Scene {
         
         if (Math.abs(diff) < 10) { return }
         
-        const aiSpeed = 2
+        const aiSpeed = 3
         
         if (diff < 0) {
             //ball is above the paddleRight
@@ -151,7 +179,7 @@ class Game extends Phaser.Scene {
             this.incrementLeftScore()
         }
 
-        const maxScore = 2
+        const maxScore = 7
         if (this.leftScore >= maxScore) {
             //player won
             this.gameState = GameState.PlayerWon
@@ -192,6 +220,11 @@ class Game extends Phaser.Scene {
 
         this.ball.setPosition( 400, 250 )
         const angle = Phaser.Math.Between( 0, 360 )
+        console.log('current ball movement angle! ', angle)
+        if ( angle === 90 || angle === 270 ) {
+            console.log('Wrong ball movement angle! ', angle)
+            this.resetBall()
+        }
         const vec = this.physics.velocityFromAngle(angle,  200)
 
         this.ball.body.setVelocity( vec.x, vec.y )
